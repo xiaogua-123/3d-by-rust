@@ -9,9 +9,11 @@ use crate::game_state::GamePhase;
 // ═══════════════════════════════════════════
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 pub struct ItemId(pub String);
 
 impl ItemId {
+    #[allow(dead_code)]
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
@@ -25,6 +27,7 @@ pub enum ItemType {
 }
 
 impl ItemType {
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             ItemType::Collectible => "收集品",
@@ -58,10 +61,12 @@ pub struct Inventory {
 }
 
 impl Inventory {
+    #[allow(dead_code)]
     pub fn has(&self, item_id: &str) -> bool {
         self.items.get(item_id).map_or(false, |&count| count > 0)
     }
 
+    #[allow(dead_code)]
     pub fn count(&self, item_id: &str) -> u32 {
         self.items.get(item_id).copied().unwrap_or(0)
     }

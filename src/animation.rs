@@ -19,6 +19,7 @@ pub enum AnimationState {
 }
 
 impl AnimationState {
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             AnimationState::Idle => "待机",

@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
 use bevy_egui::EguiPlugin;
+#[cfg(debug_assertions)]
 use bevy::input::common_conditions::input_toggle_active;
+#[cfg(debug_assertions)]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod animation;

@@ -9,6 +9,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Clone, Debug)]
 pub struct TurretDef {
     pub id: String,
+    #[allow(dead_code)]
     pub name: String,
     pub cost: u32,
     pub range: f32,
@@ -27,6 +28,7 @@ impl TurretDef {
 #[derive(Deserialize, Clone, Debug)]
 pub struct EnemyDef {
     pub id: String,
+    #[allow(dead_code)]
     pub name: String,
     pub health: f32,
     pub speed: f32,

@@ -43,10 +43,12 @@ pub struct LightingDebug {
     pub fill_entity: Option<Entity>,
 
     // ── 测试预设 ──
+    #[allow(dead_code)]
     pub current_preset: LightingPreset,
 }
 
 #[derive(Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum LightingPreset {
     /// 当前自定义值
     Custom,
@@ -63,6 +65,7 @@ pub enum LightingPreset {
 }
 
 impl LightingPreset {
+    #[allow(dead_code)]
     pub fn all() -> [LightingPreset; 6] {
         [
             LightingPreset::Custom,
@@ -74,6 +77,7 @@ impl LightingPreset {
         ]
     }
 
+    #[allow(dead_code)]
     pub fn label(self) -> &'static str {
         match self {
             LightingPreset::Custom => "自定义",
@@ -127,6 +131,7 @@ impl Default for LightingDebug {
 
 impl LightingDebug {
     /// 应用预设
+    #[allow(dead_code)]
     pub fn apply_preset(&mut self, preset: LightingPreset) {
         match preset {
             LightingPreset::Default => {

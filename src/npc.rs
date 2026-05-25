@@ -33,6 +33,7 @@ impl NpcConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub fn patrol(
         display_name: &str,
         conversation_id: &str,
@@ -60,6 +61,7 @@ pub struct NpcPatrol {
 // 辅助函数
 // ═══════════════════════════════════════════
 
+#[allow(dead_code)]
 pub fn spawn_npc(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,

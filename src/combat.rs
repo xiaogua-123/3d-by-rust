@@ -21,6 +21,7 @@ impl Health {
         }
     }
 
+    #[allow(dead_code)]
     pub fn ratio(&self) -> f32 {
         if self.max <= 0.0 {
             0.0

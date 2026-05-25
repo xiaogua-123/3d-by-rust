@@ -11,6 +11,7 @@ use bevy::pbr::{ExtendedMaterial, MaterialPlugin};
 
 /// 全局三渲二设置
 #[derive(Resource, Clone)]
+#[allow(dead_code)]
 pub struct ToonSettings {
     pub ramp_handle: Option<Handle<Image>>,
     pub default_spec_threshold: f32,

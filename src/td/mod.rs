@@ -17,7 +17,6 @@ pub mod level;
 
 pub use data::*;
 pub use events::*;
-pub use balance::*;
 
 pub struct TdPlugin;
 

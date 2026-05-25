@@ -22,6 +22,7 @@ impl TurretType {
         }
     }
 
+    #[allow(dead_code)]
     pub fn name(self) -> &'static str {
         match self {
             TurretType::Basic => "基础炮台",
