@@ -1,0 +1,68 @@
+// ═══════════════════════════════════════════
+// 游戏数值数据库 — 策划可直接修改此文件
+// 保存后重新编译即可生效
+// ═══════════════════════════════════════════
+
+GameDatabase(
+    turrets: [
+        TurretDef(
+            id: "basic",
+            name: "基础炮台",
+            cost: 50,
+            range: 5.0,
+            damage: 10.0,
+            fire_rate: 1.0,
+            color: (0.3, 0.7, 0.9),
+        ),
+        TurretDef(
+            id: "rapid",
+            name: "速射炮台",
+            cost: 100,
+            range: 4.0,
+            damage: 5.0,
+            fire_rate: 0.3,
+            color: (0.9, 0.7, 0.2),
+        ),
+        TurretDef(
+            id: "heavy",
+            name: "重型炮台",
+            cost: 150,
+            range: 6.0,
+            damage: 30.0,
+            fire_rate: 2.0,
+            color: (0.9, 0.2, 0.2),
+        ),
+    ],
+    enemies: [
+        EnemyDef(
+            id: "basic",
+            name: "普通鬼",
+            health: 30.0,
+            speed: 1.5,
+            damage: 5.0,
+            gold: 10,
+            size: 0.5,
+            color: (0.8, 0.3, 0.3),
+        ),
+        EnemyDef(
+            id: "fast",
+            name: "疾速鬼",
+            health: 15.0,
+            speed: 3.0,
+            damage: 3.0,
+            gold: 15,
+            size: 0.35,
+            color: (0.9, 0.5, 0.1),
+        ),
+        EnemyDef(
+            id: "tank",
+            name: "坦克鬼",
+            health: 80.0,
+            speed: 1.0,
+            damage: 10.0,
+            gold: 25,
+            size: 0.8,
+            color: (0.5, 0.1, 0.5),
+        ),
+    ],
+)

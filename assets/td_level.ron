@@ -1,0 +1,37 @@
+// ═══════════════════════════════════════════
+// 塔防关卡配置 — 策划可直接修改此文件
+// 保存后重新编译即可生效
+// ═══════════════════════════════════════════
+
+TdLevelDef(
+    arena_size: 50.0,
+
+    core: CoreDef(
+        position: (0.0, 0.75, 0.0),
+        height: 1.5,
+        radius: 0.5,
+        max_health: 100.0,
+    ),
+
+    spawn_points: [
+        SpawnPointDef(position: (23.0, 0.2, 0.0), direction: (-1.0, 0.0, 0.0)),
+        SpawnPointDef(position: (-23.0, 0.2, 0.0), direction: (1.0, 0.0, 0.0)),
+        SpawnPointDef(position: (0.0, 0.2, 23.0), direction: (0.0, 0.0, -1.0)),
+        SpawnPointDef(position: (0.0, 0.2, -23.0), direction: (0.0, 0.0, 1.0)),
+        SpawnPointDef(position: (23.0, 0.2, 23.0), direction: (-0.707, 0.0, -0.707)),
+        SpawnPointDef(position: (-23.0, 0.2, 23.0), direction: (0.707, 0.0, -0.707)),
+        SpawnPointDef(position: (23.0, 0.2, -23.0), direction: (-0.707, 0.0, 0.707)),
+        SpawnPointDef(position: (-23.0, 0.2, -23.0), direction: (0.707, 0.0, 0.707)),
+    ],
+
+    obstacles: [
+        ObstacleDef(position: (8.0, 0.8, 8.0), scale: (3.0, 1.6, 0.3)),
+        ObstacleDef(position: (-8.0, 0.8, -8.0), scale: (3.0, 1.6, 0.3)),
+        ObstacleDef(position: (8.0, 0.8, -8.0), scale: (3.0, 1.6, 0.3)),
+        ObstacleDef(position: (-8.0, 0.8, 8.0), scale: (3.0, 1.6, 0.3)),
+        ObstacleDef(position: (16.0, 0.6, 0.0), scale: (0.3, 1.2, 4.0)),
+        ObstacleDef(position: (-16.0, 0.6, 0.0), scale: (0.3, 1.2, 4.0)),
+        ObstacleDef(position: (0.0, 0.6, 16.0), scale: (4.0, 1.2, 0.3)),
+        ObstacleDef(position: (0.0, 0.6, -16.0), scale: (4.0, 1.2, 0.3)),
+    ],
+)
