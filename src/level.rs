@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::pbr::ExtendedMaterial;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -13,7 +12,7 @@ use crate::game_state::{LevelCollectibles, NextLevelEvent, StartGameEvent, GameP
 use crate::npc::{Npc, NpcConfig, NpcPatrol};
 use crate::dialogue::DialogueTrigger;
 use crate::player::Player;
-use crate::toon::{ToonExtension, ToonOutline, ToonSettings};
+use crate::solari_demo;
 use crate::td;
 
 // ═══════════════════════════════════════════
@@ -78,32 +77,6 @@ pub struct ZoneBank {
     pub zones: HashMap<String, ZoneDef>,
 }
 
-type ToonMaterial = ExtendedMaterial<StandardMaterial, ToonExtension>;
-
-/// 创建默认的 ToonMaterial
-fn make_toon_material(
-    materials: &mut Assets<ToonMaterial>,
-    settings: &ToonSettings,
-    base_color: Color,
-    emissive: Option<Color>,
-) -> Handle<ToonMaterial> {
-    let ramp = settings.ramp_handle.clone().unwrap_or_default();
-    materials.add(ToonMaterial {
-        base: StandardMaterial {
-            base_color,
-            emissive: emissive.unwrap_or(Color::BLACK).into(),
-            ..default()
-        },
-        extension: ToonExtension {
-            ramp_texture: ramp,
-            spec_threshold: settings.default_spec_threshold,
-            spec_smoothness: settings.default_spec_smoothness,
-            spec_color: Vec4::new(1.0, 1.0, 1.0, 1.0),
-            toon_enabled: 1,
-        },
-    })
-}
-
 
 // --- Zone transition trigger component ---
 
@@ -163,6 +136,7 @@ pub enum GameLevel {
     Level3,
     Level4,
     Level5,
+    Solari,
 }
 
 impl GameLevel {
@@ -174,6 +148,7 @@ impl GameLevel {
             GameLevel::Level3 => Some(GameLevel::Level4),
             GameLevel::Level4 => Some(GameLevel::Level5),
             GameLevel::Level5 => None,
+            GameLevel::Solari => None,
         }
     }
 
@@ -185,6 +160,7 @@ impl GameLevel {
             GameLevel::Level3 => "黑暗废墟",
             GameLevel::Level4 => "城市",
             GameLevel::Level5 => "塔防试炼",
+            GameLevel::Solari => "光追演示",
         }
     }
 
@@ -196,6 +172,7 @@ impl GameLevel {
             GameLevel::Level3 => "dark_ruins",
             GameLevel::Level4 => "city",
             GameLevel::Level5 => "tower_defense",
+            GameLevel::Solari => "solari",
         }
     }
 
@@ -206,6 +183,7 @@ impl GameLevel {
             "dark_ruins" => Some(GameLevel::Level3),
             "city" => Some(GameLevel::Level4),
             "tower_defense" => Some(GameLevel::Level5),
+            "solari" => Some(GameLevel::Solari),
             _ => None,
         }
     }
@@ -250,11 +228,16 @@ pub struct LevelEntity;
 
 pub struct LevelPlugin;
 
+/// 进入 Solari 前的关卡，用于退出时恢复
+#[derive(Resource, Default)]
+struct PreviousLevel(Option<GameLevel>);
+
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<GameLevel>()
             .init_resource::<LevelConfig>()
             .init_resource::<ZoneBank>()
+            .init_resource::<PreviousLevel>()
             .add_message::<LoadLevelEvent>()
             .add_message::<ResetPlayerEvent>()
             .add_systems(Startup, load_zones)
@@ -263,12 +246,14 @@ impl Plugin for LevelPlugin {
             .add_systems(OnEnter(GameLevel::Level3), spawn_level3)
             .add_systems(OnEnter(GameLevel::Level4), spawn_level4)
             .add_systems(OnEnter(GameLevel::Level5), spawn_level5)
+            .add_systems(OnEnter(GameLevel::Solari), enter_solari)
             .add_systems(OnExit(GameLevel::Level1), cleanup_level)
             .add_systems(OnExit(GameLevel::Level2), cleanup_level)
             .add_systems(OnExit(GameLevel::Level3), cleanup_level)
             .add_systems(OnExit(GameLevel::Level4), cleanup_level)
             .add_systems(OnExit(GameLevel::Level5), cleanup_level)
             .add_systems(OnExit(GameLevel::None), cleanup_level)
+            .add_systems(OnExit(GameLevel::Solari), exit_solari)
             // Clean up level when entering non-playing states
             .add_systems(OnEnter(GamePhase::GameOver), clear_level_state)
             .add_systems(OnEnter(GamePhase::MainMenu), clear_level_state)
@@ -277,6 +262,7 @@ impl Plugin for LevelPlugin {
                 (
                     handle_level_transition,
                     debug_level_switch,
+                    solari_level_toggle,
                     check_collectibles_for_level_complete.run_if(in_state(crate::game_state::GamePhase::Playing)),
                     check_zone_transition.run_if(in_state(crate::game_state::GamePhase::Playing)),
                     handle_start_game_level,
@@ -332,8 +318,6 @@ fn spawn_zone(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     std_materials: &mut Assets<StandardMaterial>,
-    materials: &mut Assets<ToonMaterial>,
-    settings: &ToonSettings,
     config: &GameplayConfig,
     asset_server: &AssetServer,
     zone: &ZoneDef,
@@ -349,7 +333,7 @@ fn spawn_zone(
         };
         commands.spawn((
             SceneRoot(asset_server.load(path)),
-            Transform::from_xyz(0.0, 200.0, 0.0).with_scale(Vec3::new(2.0, 2.0, 2.0)),
+            Transform::from_xyz(0.0, 1.4, 0.0).with_scale(Vec3::new(6.0, 6.0, 6.0)),
             LevelEntity,
             Name::new(format!("{}_GLB", zone.id)),
         ));
@@ -361,12 +345,10 @@ fn spawn_zone(
             Name::new(format!("{}_CollisionPlane", zone.id)),
         ));
     } else {
-        let mat = make_toon_material(
-            materials,
-            settings,
-            Color::srgb(zone.floor_color.0, zone.floor_color.1, zone.floor_color.2),
-            None,
-        );
+        let mat = std_materials.add(StandardMaterial {
+            base_color: Color::srgb(zone.floor_color.0, zone.floor_color.1, zone.floor_color.2),
+            ..default()
+        });
         // TODO: GLB替换 → SceneRoot(asset_server.load("models/terrain/{zone_id}_floor.glb#Scene0"))
         // 程序化 Plane 替换为带纹理的地面模型，保留 CollisionShape::Plane 碰撞
         commands.spawn((
@@ -381,7 +363,10 @@ fn spawn_zone(
 
     // 平台
     for (i, (px, py, pz)) in zone.platforms.iter().enumerate() {
-        let mat = make_toon_material(materials, settings, Color::srgb(0.6, 0.4, 0.2), None);
+        let mat = std_materials.add(StandardMaterial {
+            base_color: Color::srgb(0.6, 0.4, 0.2),
+            ..default()
+        });
         // TODO: GLB替换 → SceneRoot(asset_server.load("models/props/platform_{style}.glb#Scene0"))
         // 碰撞体保留 CollisionShape::Box，scale 从模型尺寸推导
         commands.spawn((
@@ -396,7 +381,10 @@ fn spawn_zone(
 
     // 墙壁
     for (i, wall) in zone.walls.iter().enumerate() {
-        let mat = make_toon_material(materials, settings, Color::srgb(0.5, 0.3, 0.1), None);
+        let mat = std_materials.add(StandardMaterial {
+            base_color: Color::srgb(0.5, 0.3, 0.1),
+            ..default()
+        });
         // TODO: GLB替换 → SceneRoot(asset_server.load("models/props/wall_{style}.glb#Scene0"))
         // 根据 zone 主题选择不同风格的墙壁模型
         commands.spawn((
@@ -438,20 +426,19 @@ fn spawn_zone(
     // 收集品
     collectibles.total = zone.collectibles.len() as u32;
     for (i, (px, py, pz)) in zone.collectibles.iter().enumerate() {
-        let mat = make_toon_material(
-            materials, settings,
-            Color::srgb(1.0, 0.8, 0.0),
-            Some(Color::srgb(0.5, 0.4, 0.0)),
-        );
+        let mat = std_materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.8, 0.0),
+            emissive: Color::srgb(0.5, 0.4, 0.0).into(),
+            ..default()
+        });
         // TODO: GLB替换 → SceneRoot(asset_server.load("models/props/collectible_gem.glb#Scene0"))
         // 可选多种模型按 zone 主题区分: coin.glb, crystal.glb, star.glb
-        // Collectible 组件和 ToonOutline 保留；动画由 animate_collectibles 系统驱动
+        // Collectible 组件保留；动画由 animate_collectibles 系统驱动
         commands.spawn((
             Mesh3d(meshes.add(Sphere::new(0.3).mesh())),
             MeshMaterial3d(mat),
             Transform::from_xyz(*px, *py, *pz),
             Collectible { base_y: *py },
-            ToonOutline,
             LevelEntity,
             Name::new(format!("{}_Collectible_{}", zone.id, i)),
         ));
@@ -459,17 +446,17 @@ fn spawn_zone(
 
     // 敌人
     for (i, enemy_def) in zone.enemies.iter().enumerate() {
-        let mat = make_toon_material(
-            materials, settings,
-            Color::srgb(1.0, 0.2, 0.2),
-            Some(Color::srgb(0.3, 0.0, 0.0)),
-        );
+        let mat = std_materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.2, 0.2),
+            emissive: Color::srgb(0.3, 0.0, 0.0).into(),
+            ..default()
+        });
         let patrol: Vec<Vec3> = enemy_def.patrol.iter()
             .map(|(x, y, z)| Vec3::new(*x, *y, *z))
             .collect();
         // TODO: GLB替换 → SceneRoot(asset_server.load("models/characters/enemy_{type}.glb#Scene0"))
         // 敌人类型: slime.glb / skeleton.glb / ghost.glb 等按 zone 主题
-        // Enemy 组件和 ToonOutline 保留；巡逻由 enemy_movement 系统驱动
+        // Enemy 组件保留；巡逻由 enemy_movement 系统驱动
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(0.8, 0.8, 0.8))),
             MeshMaterial3d(mat),
@@ -481,7 +468,6 @@ fn spawn_zone(
             },
             MoveSpeed(enemy_def.speed),
             AttackDamage(config.enemy_default_damage as f32),
-            ToonOutline,
             LevelEntity,
             Name::new(format!("{}_Enemy_{}", zone.id, i)),
         ));
@@ -517,6 +503,74 @@ fn spawn_zone(
         zone.npcs.len(),
         zone.enemies.len(),
     );
+}
+
+// ========== Solari 实时光追关卡 ==========
+
+/// 6 键切换进出 Solari 关卡
+fn solari_level_toggle(
+    keys: Res<ButtonInput<KeyCode>>,
+    config: Res<LevelConfig>,
+    mut level_writer: MessageWriter<LoadLevelEvent>,
+    previous: Res<PreviousLevel>,
+    phase: Res<State<GamePhase>>,
+) {
+    if !keys.just_pressed(KeyCode::Digit6) {
+        return;
+    }
+    // 只在游戏中有效
+    if phase.get() != &GamePhase::Playing {
+        return;
+    }
+
+    match config.current_level {
+        GameLevel::Solari => {
+            // 退出 Solari，回到之前的关卡
+            let target = previous.0.unwrap_or(GameLevel::Level1);
+            info!("退出光追演示，返回 {:?}", target);
+            level_writer.write(LoadLevelEvent {
+                level: target,
+                spawn_point: None,
+            });
+        }
+        _ => {
+            // 进入 Solari
+            info!("进入光追演示关卡");
+            level_writer.write(LoadLevelEvent {
+                level: GameLevel::Solari,
+                spawn_point: None,
+            });
+        }
+    }
+}
+
+fn enter_solari(
+    mut commands: Commands,
+    player_q: Query<Entity, With<Player>>,
+    config: Res<LevelConfig>,
+    mut previous: ResMut<PreviousLevel>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // 记住来时的关卡
+    previous.0 = Some(config.current_level);
+
+    // 移除玩家实体（含子实体：相机、手电筒、模型）
+    if let Ok(player_entity) = player_q.single() {
+        commands.entity(player_entity).despawn();
+    }
+
+    // 生成 Solari 场景
+    solari_demo::spawn_solari_scene(&mut commands, &mut meshes, &mut materials);
+}
+
+fn exit_solari(
+    commands: Commands,
+    assets: Res<AssetServer>,
+    settings: Res<crate::player::PlayerSettings>,
+) {
+    // 重新生成玩家（cleanup_level 已注册为 OnExit(Solari)，Bevy 会自动清理场景）
+    crate::player::spawn_player(commands, assets, settings);
 }
 
 fn clear_level_state(
@@ -638,8 +692,6 @@ fn spawn_level1(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
-    mut materials: ResMut<Assets<ToonMaterial>>,
-    settings: Res<ToonSettings>,
     mut collectibles: ResMut<LevelCollectibles>,
     config: Res<GameplayConfig>,
     bank: Res<ZoneBank>,
@@ -650,8 +702,8 @@ fn spawn_level1(
         return;
     };
     spawn_zone(
-        &mut commands, &mut *meshes, &mut *std_materials, &mut *materials,
-        &settings, &config, &asset_server, zone, &mut collectibles,
+        &mut commands, &mut *meshes, &mut *std_materials,
+        &config, &asset_server, zone, &mut collectibles,
     );
 }
 
@@ -661,8 +713,6 @@ fn spawn_level2(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
-    mut materials: ResMut<Assets<ToonMaterial>>,
-    settings: Res<ToonSettings>,
     mut collectibles: ResMut<LevelCollectibles>,
     config: Res<GameplayConfig>,
     bank: Res<ZoneBank>,
@@ -673,8 +723,8 @@ fn spawn_level2(
         return;
     };
     spawn_zone(
-        &mut commands, &mut *meshes, &mut *std_materials, &mut *materials,
-        &settings, &config, &asset_server, zone, &mut collectibles,
+        &mut commands, &mut *meshes, &mut *std_materials,
+        &config, &asset_server, zone, &mut collectibles,
     );
 }
 
@@ -684,8 +734,6 @@ fn spawn_level3(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
-    mut materials: ResMut<Assets<ToonMaterial>>,
-    settings: Res<ToonSettings>,
     mut collectibles: ResMut<LevelCollectibles>,
     config: Res<GameplayConfig>,
     bank: Res<ZoneBank>,
@@ -696,8 +744,8 @@ fn spawn_level3(
         return;
     };
     spawn_zone(
-        &mut commands, &mut *meshes, &mut *std_materials, &mut *materials,
-        &settings, &config, &asset_server, zone, &mut collectibles,
+        &mut commands, &mut *meshes, &mut *std_materials,
+        &config, &asset_server, zone, &mut collectibles,
     );
 }
 
@@ -733,8 +781,6 @@ fn spawn_level4(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
-    mut materials: ResMut<Assets<ToonMaterial>>,
-    settings: Res<ToonSettings>,
     mut collectibles: ResMut<LevelCollectibles>,
     config: Res<GameplayConfig>,
     bank: Res<ZoneBank>,
@@ -745,7 +791,7 @@ fn spawn_level4(
         return;
     };
     spawn_zone(
-        &mut commands, &mut *meshes, &mut *std_materials, &mut *materials,
-        &settings, &config, &asset_server, zone, &mut collectibles,
+        &mut commands, &mut *meshes, &mut *std_materials,
+        &config, &asset_server, zone, &mut collectibles,
     );
 }

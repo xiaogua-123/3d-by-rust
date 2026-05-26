@@ -21,17 +21,17 @@ mod game_state;
 mod level;
 mod log;
 mod player;
-mod toon;
 mod ui;
 mod network;
 mod world;
 mod debug_lighting;
 mod particles;
+mod solari_demo;
 mod td;
 
 use animation::AnimationPlugin;
 use audio::GameAudioPlugin;
-use camera::CameraPlugin;
+use camera::{CameraControllerPlugin, CameraPlugin};
 use collectible::CollectiblePlugin;
 use combat::CombatPlugin;
 use config::GameplayConfig;
@@ -42,7 +42,6 @@ use inventory::InventoryPlugin;
 use level::LevelPlugin;
 use npc::NpcPlugin;
 use player::PlayerPlugin;
-use toon::ToonPlugin;
 use td::TdPlugin;
 use ui::GameUiPlugin;
 use world::WorldPlugin;
@@ -55,7 +54,6 @@ fn main() {
     let mut app = App::new();
     app.add_plugins((configured_plugins(), NetworkPlugin));
     app.add_plugins((
-        ToonPlugin,
         GameStatePlugin,
         DialoguePlugin,
         InventoryPlugin,
@@ -72,6 +70,10 @@ fn main() {
         GameUiPlugin,
     ));
     app.add_plugins((ParticlePlugin, TdPlugin));
+
+    // Solari 光追渲染在进入 Solari 关卡时按需激活
+    // CameraControllerPlugin 提供通用自由视角（WASD + 鼠标），关卡6使用
+    app.add_plugins(CameraControllerPlugin);
 
     app.init_resource::<GameplayConfig>();
     app.register_type::<config::GameplayConfig>();

@@ -118,7 +118,7 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn spawn_player(
+pub(crate) fn spawn_player(
     mut commands: Commands,
     assets: Res<AssetServer>,
     settings: Res<PlayerSettings>,

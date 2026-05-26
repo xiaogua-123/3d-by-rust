@@ -6,8 +6,8 @@
 //   - models/props/collectible_coin.glb    (金币)
 //   - models/props/collectible_crystal.glb (水晶)
 //   - models/props/collectible_star.glb    (星星)
-//   - 替换时保留 Collectible 组件和 ToonOutline
-//   - 动画由 animate_collectibles 系统驱动（旋转 + 上下浮动）
+//   - 替换时保留 Collectible 组件
+//   - 动画由 animate_collectibles 系统驱动（旋转 + 上下浮动），使用默认 PBR 材质
 //   - 可按 zone 主题选择不同模型 (如 blue_forest → crystal, city → coin)
 // ═══════════════════════════════════════════
 

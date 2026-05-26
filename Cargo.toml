@@ -16,7 +16,7 @@ lto = true
 strip = true
 
 [dependencies]
-bevy = { version = "0.18", features = ["jpeg", "wav", "bevy_gltf"] }
+bevy = { version = "0.18", features = ["jpeg", "wav", "bevy_gltf", "bevy_solari"] }
 bevy_egui = "0.39.1"
 ron = "0.8"
 serde = { version = "1", features = ["derive"] }
