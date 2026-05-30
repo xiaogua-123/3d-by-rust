@@ -37,6 +37,7 @@ impl ColliderShape {
     }
 
     /// 计算两个形状之间的距离（用于快速碰撞检测）
+    #[allow(dead_code)]
     pub fn distance_to(&self, self_pos: Vec3, other: &ColliderShape, other_pos: Vec3) -> f32 {
         match (self, other) {
             (ColliderShape::Sphere { radius: r1 }, ColliderShape::Sphere { radius: r2 }) => {
@@ -62,6 +63,7 @@ impl ColliderShape {
 pub struct CollisionLayer(pub u32);
 
 impl CollisionLayer {
+    #[allow(dead_code)]
     pub const NONE: Self = Self(0);
     pub const PLAYER: Self = Self(1 << 0);
     pub const ENEMY: Self = Self(1 << 1);
@@ -70,6 +72,7 @@ impl CollisionLayer {
     pub const TERRAIN: Self = Self(1 << 4);
     pub const PROJECTILE: Self = Self(1 << 5);
     pub const TRIGGER: Self = Self(1 << 6);
+    #[allow(dead_code)]
     pub const ALL: Self = Self(u32::MAX);
 
     /// 检查是否包含指定层
@@ -146,6 +149,7 @@ impl CollisionMask {
     }
 
     /// 地形：与所有物理实体碰撞
+    #[allow(dead_code)]
     pub fn terrain() -> Self {
         Self::new(
             CollisionLayer::TERRAIN,
@@ -156,6 +160,7 @@ impl CollisionMask {
     }
 
     /// 触发器：只与玩家碰撞
+    #[allow(dead_code)]
     pub fn trigger() -> Self {
         Self::new(
             CollisionLayer::TRIGGER,
@@ -217,11 +222,13 @@ impl Collider {
     }
 
     /// 创建立方体碰撞体
+    #[allow(dead_code)]
     pub fn cuboid(half_extents: Vec3, mask: CollisionMask) -> Self {
         Self::new(ColliderShape::Box { half_extents }, mask)
     }
 
     /// 创建地面平面碰撞体
+    #[allow(dead_code)]
     pub fn ground(y: f32) -> Self {
         Self::new(
             ColliderShape::Plane {
@@ -243,6 +250,7 @@ impl Collider {
 pub struct CollisionEvent {
     pub entity_a: Entity,
     pub entity_b: Entity,
+    #[allow(dead_code)]
     pub contact_point: Vec3,
     pub contact_normal: Vec3,
     pub penetration_depth: f32,
@@ -252,7 +260,9 @@ pub struct CollisionEvent {
 /// 当两个碰撞体分离时触发
 #[derive(Message, Debug, Clone)]
 pub struct CollisionSeparationEvent {
+    #[allow(dead_code)]
     pub entity_a: Entity,
+    #[allow(dead_code)]
     pub entity_b: Entity,
 }
 
@@ -261,6 +271,7 @@ pub struct CollisionSeparationEvent {
 #[derive(Message, Debug, Clone)]
 pub struct TriggerEvent {
     pub trigger_entity: Entity,
+    #[allow(dead_code)]
     pub other_entity: Entity,
     pub trigger_type: TriggerType,
 }

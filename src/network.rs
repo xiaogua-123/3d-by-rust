@@ -1,29 +1,45 @@
+// 导入Bevy引擎核心模块
 use bevy::prelude::*;
+// 跨线程消息通道，用于网络线程与主线程通信
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
+// 序列化/反序列化，用于网络消息JSON传输
 use serde::{Deserialize, Serialize};
+// 双端队列，用于存储聊天记录
 use std::collections::VecDeque;
+// 网络IO读写
 use std::io::{Read, Write};
+// TCP网络连接相关
 use std::net::{TcpListener, TcpStream};
+// 原子布尔值，用于安全关闭线程
 use std::sync::atomic::{AtomicBool, Ordering};
+// 原子引用计数，用于共享线程状态
 use std::sync::Arc;
+// 线程操作
 use std::thread;
+// 时间相关
 use std::time::Duration;
 
+// 导入游戏状态
 use crate::game_state::GamePhase;
 
+// 默认监听端口
 const DEFAULT_PORT: u16 = 9999;
+// 聊天记录最大保存数量
 const MAX_CHAT_MESSAGES: usize = 100;
 
 // ── 网络消息协议 ──
+// 定义网络传输的数据结构与编解码规则
 
-/// 网络传输格式（4字节大端长度 + JSON）
+/// 网络传输的消息结构体（序列化后通过TCP发送）
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct WireMessage {
-    from: String,
-    text: String,
+    from: String,   // 发送者名称
+    text: String,   // 消息内容
 }
 
 impl WireMessage {
+    /// 将消息序列化为网络字节流
+    /// 格式：4字节大端长度 + JSON字符串字节
     fn to_bytes(&self) -> Vec<u8> {
         let json = serde_json::to_string(self).unwrap();
         let len = json.len() as u32;
@@ -34,44 +50,54 @@ impl WireMessage {
     }
 }
 
-/// 从字节缓冲区中尝试解析一个完整消息
+/// 从接收缓冲区尝试解析一条完整消息
+/// 解析成功会移除缓冲区中已处理的数据，失败则保留数据等待后续接收
 fn try_parse_message(buf: &mut Vec<u8>) -> Option<WireMessage> {
+    // 长度头不足4字节，无法解析
     if buf.len() < 4 {
         return None;
     }
+    // 读取消息长度
     let msg_len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+    // 消息长度异常，清空缓冲区
     if msg_len > 65536 {
         buf.clear();
         return None;
     }
+    // 消息体未接收完整
     if buf.len() < 4 + msg_len {
         return None;
     }
+    // 反序列化JSON消息
     let msg = serde_json::from_slice(&buf[4..4 + msg_len]).ok();
+    // 移除已处理的数据
     buf.drain(..4 + msg_len);
     msg
 }
 
-// ── Bevy 消息/资源 ──
+// ── Bevy 消息 / 资源 ──
+// 用于Bevy主线程的事件与资源定义
 
-/// 接收到的聊天消息
+/// 网络接收的聊天消息事件（网络线程 → 主线程）
 #[derive(Message, Clone)]
 pub struct ChatMessageEvent {
-    pub from: String,
-    pub text: String,
+    pub from: String,   // 发送者（玩家名/系统）
+    pub text: String,   // 消息内容
 }
 
-/// 用户发送聊天消息
+/// 发送聊天消息事件（UI/游戏 → 网络线程）
 #[derive(Message)]
 pub struct SendChatEvent {
     pub text: String,
 }
 
+/// 单条聊天记录实体
 pub struct ChatEntry {
     pub from: String,
     pub text: String,
 }
 
+/// 聊天记录资源：存储最近N条聊天消息
 #[derive(Resource)]
 pub struct ChatLog {
     pub messages: VecDeque<ChatEntry>,
@@ -86,28 +112,31 @@ impl Default for ChatLog {
 }
 
 // ── 网络状态 ──
+// 网络连接管理、客户端/主机状态
 
-/// 客户端连接信息
+/// 已连接的客户端信息
 struct Client {
-    stream: TcpStream,
-    name: String,
-    buf: Vec<u8>,
+    stream: TcpStream,  // TCP连接流
+    name: String,       // 客户端昵称
+    buf: Vec<u8>,       // 接收数据缓冲区
 }
 
+/// 网络状态资源：管理连接、UI输入、线程通信通道
 #[derive(Resource)]
 pub struct NetworkState {
-    pub mode: NetworkMode,
-    pub player_name: String,
-    pub port_input: String,
-    pub addr_input: String,
-    pub chat_input: String,
-    incoming_rx: Option<Receiver<ChatMessageEvent>>,
-    outgoing_tx: Option<Sender<String>>,
-    shutdown: Option<Arc<AtomicBool>>,
+    pub mode: NetworkMode,               // 当前网络模式（离线/主机/客户端）
+    pub player_name: String,             // 本地玩家昵称
+    pub port_input: String,              // UI端口输入框
+    pub addr_input: String,              // UI地址输入框
+    pub chat_input: String,              // UI聊天输入框
+    incoming_rx: Option<Receiver<ChatMessageEvent>>,  // 接收网络消息通道
+    outgoing_tx: Option<Sender<String>>,              // 发送消息到网络线程通道
+    shutdown: Option<Arc<AtomicBool>>,                // 线程关闭信号
 }
 
 impl Default for NetworkState {
     fn default() -> Self {
+        // 用系统时间生成随机默认昵称
         let seed = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
@@ -125,19 +154,15 @@ impl Default for NetworkState {
     }
 }
 
+/// 网络连接状态枚举
 pub enum NetworkMode {
-    Offline,
-    Hosting {
-        #[allow(dead_code)]
-        port: u16,
-    },
-    Client {
-        #[allow(dead_code)]
-        addr: String,
-    },
+    Offline,                   // 离线
+    Hosting { #[allow(dead_code)] port: u16 },     // 作为主机运行
+    Client { #[allow(dead_code)] addr: String },   // 作为客户端连接
 }
 
 impl NetworkMode {
+    /// 获取状态文本（用于UI显示）
     fn status_text(&self) -> &str {
         match self {
             NetworkMode::Offline => "离线",
@@ -148,7 +173,7 @@ impl NetworkMode {
 }
 
 impl NetworkState {
-    /// 停止当前网络连接
+    /// 断开连接，停止网络线程，重置状态
     fn disconnect(&mut self) {
         if let Some(shutdown) = self.shutdown.take() {
             shutdown.store(true, Ordering::Relaxed);
@@ -159,7 +184,7 @@ impl NetworkState {
         self.mode = NetworkMode::Offline;
     }
 
-    /// 启动主机（Listen Server）
+    /// 启动服务器（主机）模式
     fn start_host(&mut self) {
         self.disconnect();
 
@@ -170,6 +195,7 @@ impl NetworkState {
 
         let shutdown_clone = shutdown.clone();
         let player_name = self.player_name.clone();
+        // 启动独立线程运行服务器
         thread::spawn(move || {
             run_server(port, incoming_tx, outgoing_rx, shutdown_clone, player_name);
         });
@@ -180,7 +206,7 @@ impl NetworkState {
         self.mode = NetworkMode::Hosting { port };
     }
 
-    /// 加入远程主机
+    /// 启动客户端模式，连接到主机
     fn join_host(&mut self) {
         self.disconnect();
 
@@ -194,6 +220,7 @@ impl NetworkState {
 
         let shutdown_clone = shutdown.clone();
         let player_name = self.player_name.clone();
+        // 启动独立线程运行客户端
         thread::spawn(move || {
             run_client(addr, incoming_tx, outgoing_rx, shutdown_clone, player_name);
         });
@@ -206,6 +233,7 @@ impl NetworkState {
         };
     }
 
+    /// 发送聊天消息到网络线程
     fn send_chat(&self, text: String) {
         if let Some(ref tx) = self.outgoing_tx {
             let _ = tx.send(text);
@@ -214,6 +242,7 @@ impl NetworkState {
 }
 
 // ── 服务器线程 ──
+// 主机逻辑：监听连接、广播消息、管理客户端
 
 fn run_server(
     port: u16,
@@ -222,6 +251,7 @@ fn run_server(
     shutdown: Arc<AtomicBool>,
     host_name: String,
 ) {
+    // 绑定TCP监听端口
     let listener = match TcpListener::bind(format!("0.0.0.0:{}", port)) {
         Ok(l) => l,
         Err(e) => {
@@ -232,8 +262,10 @@ fn run_server(
             return;
         }
     };
+    // 设置非阻塞模式
     listener.set_nonblocking(true).ok();
 
+    // 发送启动成功消息
     let _ = incoming_tx.send(ChatMessageEvent {
         from: "系统".into(),
         text: format!("服务器已启动，端口 {}，等待连接...", port),
@@ -242,13 +274,14 @@ fn run_server(
     let mut clients: Vec<Client> = Vec::new();
     let mut read_buf = vec![0u8; 65536];
 
+    // 服务器主循环
     while !shutdown.load(Ordering::Relaxed) {
-        // 接受新连接
+        // 接受新客户端连接
         match listener.accept() {
             Ok((stream, addr)) => {
                 stream.set_nonblocking(true).ok();
                 let name = format!("Player({})", addr.port());
-                // 广播加入消息
+                // 广播新玩家加入消息
                 let join_msg = WireMessage {
                     from: "系统".into(),
                     text: format!("{} 加入了聊天", name),
@@ -271,17 +304,19 @@ fn run_server(
             Err(_) => break,
         }
 
-        // 读取客户端消息（先收集，再广播，避免借用冲突）
         let mut disconnected_indices: Vec<usize> = Vec::new();
         let mut broadcast_queue: Vec<Vec<u8>> = Vec::new();
         let mut system_messages: Vec<ChatMessageEvent> = Vec::new();
 
+        // 读取所有客户端消息
         for (i, client) in clients.iter_mut().enumerate() {
             match client.stream.read(&mut read_buf) {
                 Ok(0) => disconnected_indices.push(i),
                 Ok(n) => {
                     client.buf.extend_from_slice(&read_buf[..n]);
+                    // 解析完整消息
                     while let Some(msg) = try_parse_message(&mut client.buf) {
+                        // 第一条消息用于设置昵称
                         if client.name.starts_with("Player(") {
                             client.name = msg.from.clone();
                         }
@@ -297,17 +332,18 @@ fn run_server(
             }
         }
 
-        // 广播收集到的消息
+        // 广播消息给所有客户端
         for wire in &broadcast_queue {
             for c in clients.iter_mut() {
                 let _ = c.stream.write_all(wire);
             }
         }
+        // 发送消息到主线程
         for event in system_messages {
             let _ = incoming_tx.send(event);
         }
 
-        // 处理断开连接（倒序移除）
+        // 处理断开的客户端
         for &i in disconnected_indices.iter().rev() {
             let name = clients[i].name.clone();
             let leave_msg = WireMessage {
@@ -325,7 +361,7 @@ fn run_server(
             });
         }
 
-        // 处理主机消息
+        // 发送主机本地消息
         loop {
             match outgoing_rx.try_recv() {
                 Ok(text) => {
@@ -350,6 +386,7 @@ fn run_server(
         thread::sleep(Duration::from_millis(16));
     }
 
+    // 服务器关闭通知
     let _ = incoming_tx.send(ChatMessageEvent {
         from: "系统".into(),
         text: "服务器已关闭".into(),
@@ -357,6 +394,7 @@ fn run_server(
 }
 
 // ── 客户端线程 ──
+// 客户端逻辑：连接服务器、收发消息、自动重连
 
 fn run_client(
     server_addr: String,
@@ -370,8 +408,9 @@ fn run_client(
     let mut read_buf = vec![0u8; 65536];
     let mut retry_delay = 0u32;
 
+    // 客户端主循环
     while !shutdown.load(Ordering::Relaxed) {
-        // 尝试连接
+        // 未连接时尝试连接服务器
         if stream.is_none() {
             match TcpStream::connect(&server_addr) {
                 Ok(s) => {
@@ -390,6 +429,7 @@ fn run_client(
                             text: format!("正在尝试连接 {}...", server_addr),
                         });
                     }
+                    // 指数退避重连
                     retry_delay = (retry_delay + 1).min(60);
                     thread::sleep(Duration::from_millis(16 * retry_delay as u64));
                     continue;
@@ -407,7 +447,7 @@ fn run_client(
 
         let s = stream.as_mut().unwrap();
 
-        // 读取
+        // 读取服务器消息
         match s.read(&mut read_buf) {
             Ok(0) => {
                 let _ = incoming_tx.send(ChatMessageEvent {
@@ -420,6 +460,7 @@ fn run_client(
             }
             Ok(n) => {
                 buf.extend_from_slice(&read_buf[..n]);
+                // 解析并转发消息到主线程
                 while let Some(msg) = try_parse_message(&mut buf) {
                     let _ = incoming_tx.send(ChatMessageEvent {
                         from: msg.from,
@@ -439,7 +480,7 @@ fn run_client(
             }
         }
 
-        // 发送
+        // 发送本地聊天消息到服务器
         loop {
             match outgoing_rx.try_recv() {
                 Ok(text) => {
@@ -461,13 +502,15 @@ fn run_client(
 }
 
 // ── Bevy 系统 ──
+// Bevy主线程系统，处理网络消息与UI事件
 
-/// 从网络线程接收消息并存入聊天记录
+/// 从网络线程接收消息并添加到聊天记录
 fn network_receive(state: Res<NetworkState>, mut chat_log: ResMut<ChatLog>) {
     if let Some(ref rx) = state.incoming_rx {
         loop {
             match rx.try_recv() {
                 Ok(event) => {
+                    // 超过最大条数时移除最早消息
                     if chat_log.messages.len() >= MAX_CHAT_MESSAGES {
                         chat_log.messages.pop_front();
                     }
@@ -483,9 +526,10 @@ fn network_receive(state: Res<NetworkState>, mut chat_log: ResMut<ChatLog>) {
     }
 }
 
-/// 发送聊天消息到网络线程
+/// 处理发送聊天事件，转发到网络线程
 fn network_send(mut events: MessageReader<SendChatEvent>, state: Res<NetworkState>) {
     for ev in events.read() {
+        // 忽略空消息
         if ev.text.trim().is_empty() {
             continue;
         }
@@ -494,7 +538,9 @@ fn network_send(mut events: MessageReader<SendChatEvent>, state: Res<NetworkStat
 }
 
 // ── egui 聊天面板 ──
+// 聊天UI界面：连接控制、消息显示、输入发送
 
+/// 聊天UI面板，仅在聊天阶段显示
 fn chat_ui_panel(
     mut state: ResMut<NetworkState>,
     chat_log: Res<ChatLog>,
@@ -504,14 +550,14 @@ fn chat_ui_panel(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    // 全屏聊天界面，使用类似主菜单的覆盖层风格
+    // 主面板
     bevy_egui::egui::CentralPanel::default()
         .frame(bevy_egui::egui::Frame {
             fill: bevy_egui::egui::Color32::from_rgba_premultiplied(10, 15, 25, 245),
             ..Default::default()
         })
         .show(ctx, |ui| {
-            // 顶部栏：标题 + 返回按钮
+            // 顶部：返回按钮 + 状态显示
             ui.horizontal(|ui| {
                 if ui.button("← 返回主菜单").clicked() {
                     state.disconnect();
@@ -531,7 +577,7 @@ fn chat_ui_panel(
 
             ui.separator();
 
-            // 连接控制区
+            // 连接控制区：昵称、创建主机、加入服务器
             ui.horizontal(|ui| {
                 ui.label("昵称:");
                 ui.text_edit_singleline(&mut state.player_name);
@@ -552,6 +598,7 @@ fn chat_ui_panel(
                     state.join_host();
                 }
 
+                // 连接时显示断开按钮
                 if matches!(
                     state.mode,
                     NetworkMode::Hosting { .. } | NetworkMode::Client { .. }
@@ -565,7 +612,7 @@ fn chat_ui_panel(
 
             ui.separator();
 
-            // 聊天消息区域
+            // 聊天消息滚动区域
             let available_height = ui.available_height();
             bevy_egui::egui::ScrollArea::vertical()
                 .auto_shrink([false; 2])
@@ -573,6 +620,7 @@ fn chat_ui_panel(
                 .max_height(available_height - 40.0)
                 .show(ui, |ui| {
                     for entry in &chat_log.messages {
+                        // 不同角色使用不同颜色
                         let color = if entry.from == "系统" {
                             bevy_egui::egui::Color32::GRAY
                         } else if entry.from == state.player_name {
@@ -584,7 +632,7 @@ fn chat_ui_panel(
                     }
                 });
 
-            // 输入行固定在底部
+            // 底部消息输入栏
             ui.with_layout(
                 bevy_egui::egui::Layout::bottom_up(bevy_egui::egui::Align::Min),
                 |ui| {
@@ -594,6 +642,7 @@ fn chat_ui_panel(
                         let send_clicked = ui.button("发送").clicked();
                         let enter_pressed = response.has_focus()
                             && ui.input(|i| i.key_pressed(bevy_egui::egui::Key::Enter));
+                        // 发送消息（点击按钮/按回车）
                         if (send_clicked || enter_pressed) && !state.chat_input.trim().is_empty() {
                             send_writer.write(SendChatEvent {
                                 text: state.chat_input.trim().to_string(),
@@ -608,6 +657,7 @@ fn chat_ui_panel(
 }
 
 // ── 插件 ──
+// 网络聊天插件入口
 
 pub struct NetworkPlugin;
 
@@ -617,7 +667,9 @@ impl Plugin for NetworkPlugin {
             .add_message::<SendChatEvent>()
             .init_resource::<ChatLog>()
             .init_resource::<NetworkState>()
+            // 网络消息收发系统
             .add_systems(Update, (network_receive, network_send))
+            // 聊天UI仅在聊天阶段运行
             .add_systems(
                 bevy_egui::EguiPrimaryContextPass,
                 chat_ui_panel.run_if(in_state(GamePhase::MultiplayerChat)),

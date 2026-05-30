@@ -230,6 +230,7 @@ fn cleanup_collision_state(mut collision_manager: ResMut<CollisionManager>) {
 // ═══════════════════════════════════════════
 
 /// 查找指定位置附近的实体
+#[allow(dead_code)]
 pub fn find_entities_in_radius(
     position: Vec3,
     radius: f32,
@@ -260,6 +261,7 @@ pub fn find_entities_in_radius(
 }
 
 /// 检查点是否在碰撞体内
+#[allow(dead_code)]
 pub fn point_in_collider(
     point: Vec3,
     transform: &Transform,
@@ -288,6 +290,7 @@ pub fn point_in_collider(
 
 /// 射线检测结果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RaycastHit {
     pub entity: Entity,
     pub point: Vec3,
@@ -296,6 +299,7 @@ pub struct RaycastHit {
 }
 
 /// 简单的射线检测
+#[allow(dead_code)]
 pub fn raycast(
     origin: Vec3,
     direction: Vec3,
@@ -355,6 +359,7 @@ pub fn raycast(
 /// 碰撞检测系统集
 /// 用于控制系统执行顺序
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 pub struct CollisionSet {
     /// 碰撞检测阶段
     pub detection: bool,
