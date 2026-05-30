@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use ron::de::from_reader;
 use crate::collision::CollisionShape;
+use crate::colliders::{Collider, ColliderShape, CollisionMask, CollisionResponse};
 use crate::collectible::Collectible;
 use crate::combat::{AttackDamage, MoveSpeed};
 use crate::config::GameplayConfig;
@@ -14,6 +15,11 @@ use crate::dialogue::DialogueTrigger;
 use crate::player::Player;
 use crate::solari_demo;
 use crate::td;
+
+/// 从模型标识符构造 GLB 场景加载路径
+fn npc_model_path(id: &str) -> String {
+    format!("models/{id}.glb#Scene0")
+}
 
 // ═══════════════════════════════════════════
 // Zone 数据定义（RON 驱动）
@@ -31,7 +37,7 @@ pub struct ZoneDef {
     #[serde(default)]
     pub npcs: Vec<ZoneNpcDef>,
     #[serde(default)]
-    pub collectibles: Vec<(f32, f32, f32)>,
+    pub collectibles: Vec<CollectibleDef>,
     #[serde(default)]
     pub enemies: Vec<ZoneEnemyDef>,
     #[serde(default)]
@@ -39,7 +45,11 @@ pub struct ZoneDef {
     #[serde(default)]
     pub walls: Vec<ZoneWallDef>,
     #[serde(default)]
-    pub platforms: Vec<(f32, f32, f32)>,
+    pub platforms: Vec<PlatformDef>,
+}
+
+fn default_scale() -> (f32, f32, f32) {
+    (1.0, 1.0, 1.0)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +59,10 @@ pub struct ZoneNpcDef {
     pub start_node: String,
     pub position: (f32, f32, f32),
     pub color: (f32, f32, f32),
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default = "default_scale")]
+    pub scale: (f32, f32, f32),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +70,24 @@ pub struct ZoneEnemyDef {
     pub position: (f32, f32, f32),
     pub patrol: Vec<(f32, f32, f32)>,
     pub speed: f32,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default = "default_scale")]
+    pub scale: (f32, f32, f32),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectibleDef {
+    pub position: (f32, f32, f32),
+    #[serde(default = "default_scale")]
+    pub scale: (f32, f32, f32),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlatformDef {
+    pub position: (f32, f32, f32),
+    #[serde(default = "default_scale")]
+    pub scale: (f32, f32, f32),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -254,6 +286,11 @@ impl Plugin for LevelPlugin {
             .add_systems(OnExit(GameLevel::Level5), cleanup_level)
             .add_systems(OnExit(GameLevel::None), cleanup_level)
             .add_systems(OnExit(GameLevel::Solari), exit_solari)
+            // Solari 动画：展厅物体旋转
+            .add_systems(
+                Update,
+                solari_demo::animate_solari.run_if(in_state(GameLevel::Solari)),
+            )
             // Clean up level when entering non-playing states
             .add_systems(OnEnter(GamePhase::GameOver), clear_level_state)
             .add_systems(OnEnter(GamePhase::MainMenu), clear_level_state)
@@ -333,7 +370,7 @@ fn spawn_zone(
         };
         commands.spawn((
             SceneRoot(asset_server.load(path)),
-            Transform::from_xyz(0.0, 1.4, 0.0).with_scale(Vec3::new(6.0, 6.0, 6.0)),
+            Transform::from_xyz(0.0, 0.8, 0.0).with_scale(Vec3::new(54.0, 54.0, 54.0)),
             LevelEntity,
             Name::new(format!("{}_GLB", zone.id)),
         ));
@@ -362,7 +399,7 @@ fn spawn_zone(
     }
 
     // 平台
-    for (i, (px, py, pz)) in zone.platforms.iter().enumerate() {
+    for (i, plat) in zone.platforms.iter().enumerate() {
         let mat = std_materials.add(StandardMaterial {
             base_color: Color::srgb(0.6, 0.4, 0.2),
             ..default()
@@ -372,7 +409,8 @@ fn spawn_zone(
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(3.0, 0.3, 3.0))),
             MeshMaterial3d(mat),
-            Transform::from_xyz(*px, *py, *pz),
+            Transform::from_xyz(plat.position.0, plat.position.1, plat.position.2)
+                .with_scale(Vec3::new(plat.scale.0, plat.scale.1, plat.scale.2)),
             CollisionShape::Box { half_extents: Vec3::new(1.5, 0.15, 1.5) },
             LevelEntity,
             Name::new(format!("{}_Platform_{}", zone.id, i)),
@@ -398,18 +436,12 @@ fn spawn_zone(
         ));
     }
 
-    // NPC
+    // NPC（指定 model 则使用 GLB 角色模型，否则使用程序化方块）
     for npc_def in &zone.npcs {
         let radius = 2.5;
-        // TODO: GLB替换 → SceneRoot(asset_server.load("models/characters/{npc_id}.glb#Scene0"))
-        // 替换后 Npc/NpcConfig/DialogueTrigger 组件保留在 GLB 根实体上
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.6, 1.6, 0.6))),
-            MeshMaterial3d(std_materials.add(StandardMaterial {
-                base_color: Color::srgb(npc_def.color.0, npc_def.color.1, npc_def.color.2),
-                ..default()
-            })),
-            Transform::from_xyz(npc_def.position.0, npc_def.position.1, npc_def.position.2),
+        let mut entity = commands.spawn((
+            Transform::from_xyz(npc_def.position.0, npc_def.position.1, npc_def.position.2)
+                .with_scale(Vec3::new(npc_def.scale.0, npc_def.scale.1, npc_def.scale.2)),
             Npc,
             NpcConfig::stationary(&npc_def.display_name, &npc_def.conversation_id, &npc_def.start_node),
             NpcPatrol::default(),
@@ -418,14 +450,28 @@ fn spawn_zone(
                 start_node: npc_def.start_node.clone(),
                 radius,
             },
+            // 统一碰撞体系统
+            Collider::sphere(0.5, CollisionMask::npc()),
+            CollisionResponse::kinematic(),
             LevelEntity,
             Name::new(format!("NPC_{}", npc_def.display_name)),
         ));
+        if let Some(model_id) = &npc_def.model {
+            entity.insert(SceneRoot(asset_server.load(npc_model_path(model_id))));
+        } else {
+            entity.insert((
+                Mesh3d(meshes.add(Cuboid::new(0.6, 1.6, 0.6))),
+                MeshMaterial3d(std_materials.add(StandardMaterial {
+                    base_color: Color::srgb(npc_def.color.0, npc_def.color.1, npc_def.color.2),
+                    ..default()
+                })),
+            ));
+        }
     }
 
     // 收集品
     collectibles.total = zone.collectibles.len() as u32;
-    for (i, (px, py, pz)) in zone.collectibles.iter().enumerate() {
+    for (i, col) in zone.collectibles.iter().enumerate() {
         let mat = std_materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 0.8, 0.0),
             emissive: Color::srgb(0.5, 0.4, 0.0).into(),
@@ -437,30 +483,27 @@ fn spawn_zone(
         commands.spawn((
             Mesh3d(meshes.add(Sphere::new(0.3).mesh())),
             MeshMaterial3d(mat),
-            Transform::from_xyz(*px, *py, *pz),
-            Collectible { base_y: *py },
+            Transform::from_xyz(col.position.0, col.position.1, col.position.2)
+                .with_scale(Vec3::new(col.scale.0, col.scale.1, col.scale.2)),
+            Collectible { base_y: col.position.1 },
+            // 统一碰撞体系统（触发器）
+            Collider::trigger(
+                ColliderShape::Sphere { radius: 0.3 },
+                CollisionMask::collectible(),
+            ),
             LevelEntity,
             Name::new(format!("{}_Collectible_{}", zone.id, i)),
         ));
     }
 
-    // 敌人
+    // 敌人（指定 model 则使用 GLB 角色模型，否则使用程序化红色方块）
     for (i, enemy_def) in zone.enemies.iter().enumerate() {
-        let mat = std_materials.add(StandardMaterial {
-            base_color: Color::srgb(1.0, 0.2, 0.2),
-            emissive: Color::srgb(0.3, 0.0, 0.0).into(),
-            ..default()
-        });
         let patrol: Vec<Vec3> = enemy_def.patrol.iter()
             .map(|(x, y, z)| Vec3::new(*x, *y, *z))
             .collect();
-        // TODO: GLB替换 → SceneRoot(asset_server.load("models/characters/enemy_{type}.glb#Scene0"))
-        // 敌人类型: slime.glb / skeleton.glb / ghost.glb 等按 zone 主题
-        // Enemy 组件保留；巡逻由 enemy_movement 系统驱动
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.8, 0.8, 0.8))),
-            MeshMaterial3d(mat),
-            Transform::from_xyz(enemy_def.position.0, enemy_def.position.1, enemy_def.position.2),
+        let mut entity = commands.spawn((
+            Transform::from_xyz(enemy_def.position.0, enemy_def.position.1, enemy_def.position.2)
+                .with_scale(Vec3::new(enemy_def.scale.0, enemy_def.scale.1, enemy_def.scale.2)),
             Enemy {
                 patrol_points: patrol,
                 current_target: 1,
@@ -468,9 +511,25 @@ fn spawn_zone(
             },
             MoveSpeed(enemy_def.speed),
             AttackDamage(config.enemy_default_damage as f32),
+            // 统一碰撞体系统
+            Collider::sphere(0.4, CollisionMask::enemy()),
+            CollisionResponse::default(),
             LevelEntity,
             Name::new(format!("{}_Enemy_{}", zone.id, i)),
         ));
+        if let Some(model_id) = &enemy_def.model {
+            entity.insert(SceneRoot(asset_server.load(npc_model_path(model_id))));
+        } else {
+            let mat = std_materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.2, 0.2),
+                emissive: Color::srgb(0.3, 0.0, 0.0).into(),
+                ..default()
+            });
+            entity.insert((
+                Mesh3d(meshes.add(Cuboid::new(0.8, 0.8, 0.8))),
+                MeshMaterial3d(mat),
+            ));
+        }
     }
 
     // Zone 过渡触发器
@@ -512,7 +571,7 @@ fn solari_level_toggle(
     keys: Res<ButtonInput<KeyCode>>,
     config: Res<LevelConfig>,
     mut level_writer: MessageWriter<LoadLevelEvent>,
-    previous: Res<PreviousLevel>,
+    mut previous: ResMut<PreviousLevel>,
     phase: Res<State<GamePhase>>,
 ) {
     if !keys.just_pressed(KeyCode::Digit6) {
@@ -534,8 +593,9 @@ fn solari_level_toggle(
             });
         }
         _ => {
-            // 进入 Solari
-            info!("进入光追演示关卡");
+            // 进入 Solari — 先保存当前关卡，再发送事件
+            previous.0 = Some(config.current_level);
+            info!("进入光追演示关卡 (来自 {:?})", previous.0);
             level_writer.write(LoadLevelEvent {
                 level: GameLevel::Solari,
                 spawn_point: None,
@@ -547,29 +607,63 @@ fn solari_level_toggle(
 fn enter_solari(
     mut commands: Commands,
     player_q: Query<Entity, With<Player>>,
-    config: Res<LevelConfig>,
-    mut previous: ResMut<PreviousLevel>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    bank: Res<ZoneBank>,
 ) {
-    // 记住来时的关卡
-    previous.0 = Some(config.current_level);
-
     // 移除玩家实体（含子实体：相机、手电筒、模型）
     if let Ok(player_entity) = player_q.single() {
         commands.entity(player_entity).despawn();
     }
 
-    // 生成 Solari 场景
-    solari_demo::spawn_solari_scene(&mut commands, &mut meshes, &mut materials);
+    // 从 zone 数据生成碰撞平面和过渡触发器
+    if let Some(zone) = bank.zones.get("solari") {
+        // 碰撞平面
+        commands.spawn((
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            CollisionShape::Plane { y: 0.0 },
+            LevelEntity,
+            Name::new("solari_Collision"),
+        ));
+
+        // 过渡触发器
+        for trans in &zone.transitions {
+            if let Some(target_level) = GameLevel::from_zone_id(&trans.target_zone) {
+                commands.spawn((
+                    Transform::from_xyz(trans.trigger_pos.0, trans.trigger_pos.1, trans.trigger_pos.2),
+                    CollisionShape::Box {
+                        half_extents: Vec3::new(
+                            trans.trigger_size.0 / 2.0,
+                            trans.trigger_size.1 / 2.0,
+                            trans.trigger_size.2 / 2.0,
+                        ),
+                    },
+                    ZoneTrigger {
+                        target_zone: target_level,
+                        spawn_point: Vec3::new(trans.spawn_point.0, trans.spawn_point.1, trans.spawn_point.2),
+                    },
+                    LevelEntity,
+                    Name::new(format!("solari_to_{}", trans.target_zone)),
+                ));
+            }
+        }
+    }
+
+    // 生成 PBR 材质展厅
+    solari_demo::spawn_pbr_showcase(&mut commands, &mut *meshes, &mut *materials);
 }
 
 fn exit_solari(
-    commands: Commands,
+    mut commands: Commands,
     assets: Res<AssetServer>,
     settings: Res<crate::player::PlayerSettings>,
+    solari_objects: Query<Entity, With<LevelEntity>>,
 ) {
-    // 重新生成玩家（cleanup_level 已注册为 OnExit(Solari)，Bevy 会自动清理场景）
+    // 清理 Solari 场景物体
+    for entity in solari_objects.iter() {
+        commands.entity(entity).despawn();
+    }
+    // 重新生成玩家
     crate::player::spawn_player(commands, assets, settings);
 }
 

@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::animation::AnimationController;
 use crate::camera::LookState;
 use crate::collision::{CollisionShape, find_ground_y, push_out_horizontal};
+use crate::colliders::{Collider, CollisionMask, CollisionResponse};
 use crate::config::GameplayConfig;
 use crate::level::ResetPlayerEvent;
 
@@ -145,6 +146,9 @@ pub(crate) fn spawn_player(
                 },
             },
             MoveIntent::default(),
+            // 统一碰撞体系统
+            Collider::capsule(0.3, 0.9, CollisionMask::player()),
+            CollisionResponse::default(),
             Name::new("Player"),
         ))
         .with_children(|parent| {
@@ -157,7 +161,7 @@ pub(crate) fn spawn_player(
             ));
             parent.spawn((
                 Camera3d::default(),
-                Transform::from_xyz(0.0, 1.9, -1.0),
+                Transform::from_xyz(0.2, 1.5, 1.7),
                 LookState { pitch: 0.0, yaw: 0.0 },
                 Name::new("Camera"),
             ));

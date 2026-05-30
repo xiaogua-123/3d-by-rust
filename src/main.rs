@@ -11,6 +11,8 @@ mod audio;
 mod camera;
 mod collectible;
 mod collision;
+mod colliders;
+mod collision_manager;
 mod combat;
 mod config;
 mod dialogue;
@@ -33,6 +35,7 @@ use animation::AnimationPlugin;
 use audio::GameAudioPlugin;
 use camera::{CameraControllerPlugin, CameraPlugin};
 use collectible::CollectiblePlugin;
+use collision_manager::CollisionManagerPlugin;
 use combat::CombatPlugin;
 use config::GameplayConfig;
 use dialogue::DialoguePlugin;
@@ -68,6 +71,7 @@ fn main() {
         CombatPlugin,
         EnemyPlugin,
         GameUiPlugin,
+        CollisionManagerPlugin,
     ));
     app.add_plugins((ParticlePlugin, TdPlugin));
 
@@ -78,6 +82,10 @@ fn main() {
     app.init_resource::<GameplayConfig>();
     app.register_type::<config::GameplayConfig>();
     app.register_type::<collision::CollisionShape>();
+    app.register_type::<colliders::Collider>();
+    app.register_type::<colliders::ColliderShape>();
+    app.register_type::<colliders::CollisionLayer>();
+    app.register_type::<colliders::CollisionMask>();
     app.init_resource::<debug_lighting::LightingDebug>();
     app.add_systems(PostUpdate, debug_lighting::sync_lighting_to_world);
 

@@ -11,8 +11,8 @@
 // ═══════════════════════════════════════════
 
 use bevy::prelude::*;
+use crate::colliders::CollisionEvent;
 use crate::combat::{self, AttackDamage, MoveSpeed};
-use crate::config::GameplayConfig;
 use crate::game_state::{DamagePlayerEvent, GamePhase};
 use crate::player::Player;
 
@@ -51,24 +51,39 @@ fn enemy_movement(
 
 fn enemy_damage_player(
     time: Res<Time>,
-    config: Res<GameplayConfig>,
-    mut enemy_q: Query<(&Transform, &mut Enemy, &AttackDamage)>,
-    player_q: Query<&Transform, (With<Player>, Without<Enemy>)>,
+    mut enemy_q: Query<(&mut Enemy, &AttackDamage)>,
+    player_q: Query<Entity, With<Player>>,
+    mut collision_events: MessageReader<CollisionEvent>,
     mut damage_writer: MessageWriter<DamagePlayerEvent>,
 ) {
-    let Ok(player_t) = player_q.single() else { return };
-    let player_pos = player_t.translation;
+    let Ok(player_entity) = player_q.single() else { return };
 
-    for (enemy_t, mut enemy, damage) in enemy_q.iter_mut() {
-        enemy.attack_cooldown.tick(time.delta());
-        if !enemy.attack_cooldown.is_finished() {
+    // 处理碰撞事件
+    for event in collision_events.read() {
+        // 检查是否是玩家与敌人的碰撞
+        let (enemy_entity, _) = if event.entity_a == player_entity {
+            (event.entity_b, event.entity_a)
+        } else if event.entity_b == player_entity {
+            (event.entity_a, event.entity_b)
+        } else {
             continue;
-        }
+        };
 
-        let dist = player_pos.distance(enemy_t.translation);
-        if dist < config.enemy_damage_radius {
+        // 获取敌人组件
+        if let Ok((mut enemy, damage)) = enemy_q.get_mut(enemy_entity) {
+            enemy.attack_cooldown.tick(time.delta());
+            if !enemy.attack_cooldown.is_finished() {
+                continue;
+            }
+
+            // 造成伤害
             damage_writer.write(DamagePlayerEvent(damage.0 as u32));
             enemy.attack_cooldown.reset();
         }
+    }
+
+    // 更新所有敌人的冷却时间
+    for (mut enemy, _) in enemy_q.iter_mut() {
+        enemy.attack_cooldown.tick(time.delta());
     }
 }
