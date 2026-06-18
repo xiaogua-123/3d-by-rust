@@ -1,2 +1,28 @@
-/target
-/bevy
+# Rust / Cargo build artifacts
+target/
+**/target/
+
+# Node.js
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# AI tools
+.claude/
+
+# Code index
+.understand-anything/
+
+# RON backup files
+*.ron.bak

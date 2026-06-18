@@ -1,0 +1,187 @@
+// ═══════════════════════════════════════════
+// 实体生成数据库 — 所有可生成的实体模板
+// ═══════════════════════════════════════════
+// 新增实体只需在此添加一条记录，无需修改代码
+// model: Some("path") = GLB 模型，None = 原木/立方体回退
+
+[
+    // ── 压力测试 ──
+    EntityTemplate(
+        id: "stress.npc",
+        display_name: "残响体·量产型",
+        category: stress_npc,
+        model: Some("models/entity/5.glb#Scene0"),
+        scale: 1.0,
+        tags: ["stress_test", "resonance"],
+    ),
+
+    // ── 玩家 ──
+    EntityTemplate(
+        id: "player",
+        display_name: "玩家",
+        category: npc,
+        model: Some("models/entity/BrainStem.glb#Scene0"),
+        scale: 1.0,
+        tags: ["player"],
+    ),
+
+    // ── NPC ──
+    EntityTemplate(
+        id: "npc.default",
+        display_name: "普通路人",
+        category: npc,
+        model: None,
+        scale: 1.0,
+        tags: ["npc", "interactive"],
+    ),
+    EntityTemplate(
+        id: "npc.female",
+        display_name: "女性路人",
+        category: npc,
+        model: Some("models/entity/12.glb#Scene0"),
+        scale: 1.0,
+        tags: ["npc", "interactive", "female"],
+    ),
+
+    // ── 敌人 ──
+    EntityTemplate(
+        id: "enemy.default",
+        display_name: "普通敌人",
+        category: enemy,
+        model: None,
+        scale: 1.0,
+        tags: ["enemy", "hostile"],
+    ),
+    EntityTemplate(
+        id: "enemy.boss1",
+        display_name: "首领·黑涡",
+        category: enemy,
+        model: Some("models/entity/7.glb#Scene0"),
+        scale: 3.0,
+        tags: ["enemy", "boss"],
+    ),
+    EntityTemplate(
+        id: "enemy.boss2",
+        display_name: "首领·残响",
+        category: enemy,
+        model: Some("models/entity/6.glb#Scene0"),
+        scale: 2.5,
+        tags: ["enemy", "boss"],
+    ),
+
+    // ── 场景道具 ──
+    EntityTemplate(
+        id: "prop.floor",
+        display_name: "地板",
+        category: prop,
+        model: None,
+        scale: 1.0,
+        tags: ["prop", "environment"],
+    ),
+    EntityTemplate(
+        id: "prop.cube",
+        display_name: "正方体",
+        category: prop,
+        model: None,
+        scale: 1.0,
+        tags: ["prop", "primitive"],
+    ),
+    EntityTemplate(
+        id: "prop.cabinet",
+        display_name: "储物柜",
+        category: prop,
+        model: Some("models/entity/3.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "furniture"],
+    ),
+    EntityTemplate(
+        id: "prop.phone",
+        display_name: "电话机",
+        category: prop,
+        model: Some("models/entity/1.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "item"],
+    ),
+    EntityTemplate(
+        id: "prop.hand",
+        display_name: "断手模型",
+        category: prop,
+        model: Some("models/entity/2.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "body"],
+    ),
+    EntityTemplate(
+        id: "prop.clothes",
+        display_name: "病号服",
+        category: prop,
+        model: Some("models/entity/4.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "furniture"],
+    ),
+    EntityTemplate(
+        id: "prop.room",
+        display_name: "手术室场景",
+        category: prop,
+        model: Some("models/entity/8.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "scene"],
+    ),
+    EntityTemplate(
+        id: "prop.forceps",
+        display_name: "手术钳",
+        category: prop,
+        model: Some("models/entity/9.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "medical"],
+    ),
+    EntityTemplate(
+        id: "prop.syringe",
+        display_name: "注射器",
+        category: prop,
+        model: Some("models/entity/10.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "medical"],
+    ),
+    EntityTemplate(
+        id: "prop.surgery_bed",
+        display_name: "手术台",
+        category: prop,
+        model: Some("models/entity/11.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "medical"],
+    ),
+    EntityTemplate(
+        id: "prop.scissors",
+        display_name: "手术剪",
+        category: prop,
+        model: Some("models/entity/13.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "medical"],
+    ),
+    EntityTemplate(
+        id: "prop.surgery_room",
+        display_name: "大型手术室",
+        category: prop,
+        model: Some("models/entity/14.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "scene", "large"],
+    ),
+    EntityTemplate(
+        id: "prop.super_large_map",
+        display_name: "超大地图",
+        category: prop,
+        model: Some("models/entity/15.glb#Scene0"),
+        scale: 1.0,
+        tags: ["prop", "scene", "large"],
+    ),
+
+    // ── 收集品 ──
+    EntityTemplate(
+        id: "collectible.default",
+        display_name: "收集品",
+        category: collectible,
+        model: None,
+        scale: 0.5,
+        tags: ["collectible"],
+    ),
+]

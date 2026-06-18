@@ -1,0 +1,83 @@
+// ==========================================
+// 关卡 Demo — 完整功能模板
+// 拷贝此文件改名后自行添加内容
+// ==========================================
+
+(
+    // 唯一标识（建议英文小写+下划线）
+    id: "demo",
+    // 游戏中显示的关卡名
+    display_name: "Demo 关卡",
+
+    // ── 场景 ──────────────────────────────
+    // 二选一：
+    //   Some("maps/xxx.glb")   → 加载 GLB 模型做地面+装饰
+    //   None                   → 用程序化平面
+    glb_scene: None,
+
+    // 程序化地面的尺寸和颜色（glb_scene=None 时生效）
+    floor_size: 40.0,
+    floor_color: (0.3, 0.35, 0.4),
+
+    // 玩家进入关卡时的出生点
+    spawn_point: (0.0, 1.0, 5.0),
+
+    // ── NPC ───────────────────────────────
+    npcs: [
+        (
+            display_name: "向导",            // 头顶显示的名字
+            conversation_id: "guide_talk",    // 对话树 ID（dialogue/ 下定义）
+            start_node: "start",              // 对话起始节点
+            position: (4.0, 0.0, 3.0),        // 位置
+            color: (0.4, 0.6, 0.8),           // 无 GLB 模型时的方块颜色
+            model: None,                      // Some("12") → models/12.glb#Scene0
+            scale: (1.0, 1.0, 1.0),
+        ),
+    ],
+
+    // ── 收集品 ────────────────────────────
+    collectibles: [
+        (position: (-4.0, 1.0, 3.0), scale: (1.0, 1.0, 1.0)),
+        (position: (4.0, 1.0, -2.0), scale: (1.0, 1.0, 1.0)),
+    ],
+
+    // ── 敌人 ──────────────────────────────
+    enemies: [
+        // 注意：巡逻路径不要走进 walls 的范围内
+        // 左墙 x=-8~-7.85，右墙 x=7.85~8.15，后墙 z=11.85~12.15
+        (
+            position: (5.0, 0.5, 3.0),
+            patrol: [(5.0, 0.5, 3.0), (5.0, 0.5, 8.0)],
+            speed: 1.5,
+            model: None,       // Some("enemy_slime") → models/enemy_slime.glb#Scene0
+            scale: (1.0, 1.0, 1.0),
+        ),
+    ],
+
+    // ── 区域过渡门 ───────────────────────
+    transitions: [
+        (
+            target_zone: "demo",               // 目标 zone_id
+            trigger_pos: (0.0, 1.0, -19.0),    // 触发区域位置
+            trigger_size: (10.0, 3.0, 2.0),    // 触发区域大小
+            spawn_point: (0.0, 0.0, 18.0),     // 传送到目标后的出生点
+            // 以下条件可选，不填则无条件通过
+            required_item: None,                // Some("key_name")
+            required_flag: None,                // Some("talked_to_npc")
+            locked_message: None,               // Some("门锁住了")
+        ),
+    ],
+
+    // ── 墙壁 ──────────────────────────────
+    walls: [
+        // (position, scale) 按中心+尺寸定义
+        (position: (-8.0, 1.5, 0.0), scale: (0.3, 3.0, 20.0)),
+        (position: (8.0, 1.5, 0.0), scale: (0.3, 3.0, 20.0)),
+        (position: (0.0, 1.5, 12.0), scale: (16.0, 3.0, 0.3)),
+    ],
+
+    // ── 平台（可站立） ───────────────────
+    platforms: [
+        (position: (3.0, 2.0, 0.0), scale: (1.0, 1.0, 1.0)),
+    ],
+)

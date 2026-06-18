@@ -1,0 +1,38 @@
+// Demo 关卡区块配置
+//
+// 每个区块覆盖 32×32 米，以 (0,0) 为中心。
+// 玩家出生在 chunk (0,0) 附近。
+{
+    // ── 玩家出生区块 ──
+    (0, 0): (
+        coord: (0, 0),
+        terrain_glb: None,
+        npcs: [],
+        collectibles: [],
+        proximity_models: [],
+    ),
+    // ── 东侧区块 ──
+    (1, 0): (
+        coord: (1, 0),
+        terrain_glb: None,
+        npcs: [],
+        collectibles: [],
+        proximity_models: [],
+    ),
+    // ── 北侧区块 ──
+    (0, -1): (
+        coord: (0, -1),
+        terrain_glb: None,
+        npcs: [],
+        collectibles: [],
+        proximity_models: [],
+    ),
+    // ── 东北区块 ──
+    (1, -1): (
+        coord: (1, -1),
+        terrain_glb: None,
+        npcs: [],
+        collectibles: [],
+        proximity_models: [],
+    ),
+}

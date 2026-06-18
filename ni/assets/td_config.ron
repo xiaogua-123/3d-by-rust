@@ -1,0 +1,63 @@
+// ═══════════════════════════════════════════════════════════════
+// 塔防数值调参数据库 — 策划在此文件中调整所有塔防数值
+// 修改此文件后重新编译游戏即可生效
+// 格式: RON (Rusty Object Notation)
+// ═══════════════════════════════════════════════════════════════
+
+TdConfig(
+    // ── 波次系统 ──
+    wave: WaveConfig(
+        // 最大波次
+        max_waves: 10,
+        // 第一波敌人数
+        enemies_per_wave_base: 5,
+        // 每波增加敌人数
+        enemies_per_wave_growth: 2,
+        // 敌人生成间隔（秒）
+        spawn_interval: 0.8,
+        // 波次冷却时间（秒）
+        wave_cooldown: 8.0,
+        // 初始金币
+        starting_gold: 300,
+    ),
+
+    // ── 炮塔全局参数 ──
+    turret_global: TurretGlobalConfig(
+        // 炮塔旋转速度（弧度/秒）
+        rotation_speed: 3.0,
+        // 子弹飞行速度（米/秒）
+        projectile_speed: 12.0,
+        // 子弹最大存活时间（秒）
+        projectile_lifetime: 3.0,
+        // 炮塔搜索间隔（秒）
+        target_search_interval: 0.2,
+    ),
+
+    // ── 经济系统 ──
+    economy: EconomyConfig(
+        // 金币利息倍率（0 = 无利息）
+        gold_interest_rate: 0.0,
+        // 每波结束奖励金币
+        gold_per_wave_bonus: 50,
+        // 出售炮塔返还比例（0.0 ~ 1.0）
+        turret_refund_ratio: 0.5,
+    ),
+
+    // ── 防御核心 ──
+    core: CoreConfig(
+        // 核心最大生命值
+        max_health: 100.0,
+    ),
+
+    // ── 难度缩放 ──
+    scaling: DifficultyScaling(
+        // 每波生命值倍率 (1.0 = 不变, 1.1 = 每波 +10%)
+        health_mult_per_wave: 1.08,
+        // 每波速度倍率
+        speed_mult_per_wave: 1.02,
+        // 每波伤害倍率
+        damage_mult_per_wave: 1.05,
+        // 每波金币倍率
+        gold_mult_per_wave: 1.05,
+    ),
+)
